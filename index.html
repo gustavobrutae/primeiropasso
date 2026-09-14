@@ -628,7 +628,9 @@
   .xingu-video{
     position:absolute;inset:0;width:100%;height:100%;
     object-fit:cover;z-index:0;
+    transition:opacity .6s linear;
   }
+  .xingu-video-b{opacity:0;}
   .xingu-video-overlay{
     position:absolute;inset:0;z-index:0;
     background:linear-gradient(180deg,rgba(0,0,0,0.35) 0%,rgba(0,0,0,0.55) 100%);
@@ -1064,7 +1066,10 @@
   <section class="xingu-quote">
     <div class="container">
       <div class="xingu-frame">
-        <video class="xingu-video" id="xinguVideo" autoplay muted loop playsinline webkit-playsinline preload="auto">
+        <video class="xingu-video xingu-video-a" id="xinguVideoA" autoplay muted playsinline webkit-playsinline preload="auto">
+          <source src="xingu-bg.mp4" type="video/mp4">
+        </video>
+        <video class="xingu-video xingu-video-b" id="xinguVideoB" muted playsinline webkit-playsinline preload="auto">
           <source src="xingu-bg.mp4" type="video/mp4">
         </video>
         <div class="xingu-video-overlay"></div>
@@ -1212,15 +1217,34 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
     });
   }
 
-  // XINGU quote - fill the "O"s the same way the names block does
+  // XINGU quote - crossfade the loop point between two mirrored videos so the
+  // cut from end to start is never visible
   (function(){
-    var xinguVideo = document.getElementById('xinguVideo');
-    if(xinguVideo){
-      xinguVideo.addEventListener('ended', function(){
-        xinguVideo.currentTime = 0;
-        xinguVideo.play();
-      });
+    var a = document.getElementById('xinguVideoA');
+    var b = document.getElementById('xinguVideoB');
+    if(a && b){
+      var FADE = 0.6;
+      var active = a, idle = b, swapping = false;
+      function onTime(e){
+        if(swapping || e.target !== active || !active.duration) return;
+        if(active.currentTime >= active.duration - FADE){
+          swapping = true;
+          idle.currentTime = 0;
+          idle.play();
+          idle.style.opacity = '1';
+          active.style.opacity = '0';
+          setTimeout(function(){
+            active.pause();
+            var tmp = active; active = idle; idle = tmp;
+            swapping = false;
+          }, FADE * 1000);
+        }
+      }
+      a.addEventListener('timeupdate', onTime);
+      b.addEventListener('timeupdate', onTime);
     }
+
+    // XINGU quote - fill the "O"s the same way the names block does
     var xinguText = document.getElementById('xinguText');
     if(xinguText){
       xinguText.innerHTML = xinguText.textContent.split(' ').map(function(word){
