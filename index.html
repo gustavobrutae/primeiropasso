@@ -616,6 +616,44 @@
     letter-spacing:-0.01em;color:#000;white-space:pre;
   }
 
+  /* XINGU - quote block, framed and aligned to the site's container edges */
+  .xingu-quote{background:#000;padding:96px 0;}
+  .xingu-frame{
+    position:relative;
+    border:1px solid rgba(244,245,239,0.18);
+    border-radius:2px;
+    padding:clamp(40px,6vw,84px) clamp(28px,5vw,72px);
+    overflow:hidden;
+  }
+  .xingu-video{
+    position:absolute;inset:0;width:100%;height:100%;
+    object-fit:cover;z-index:0;
+  }
+  .xingu-video-overlay{
+    position:absolute;inset:0;z-index:0;
+    background:linear-gradient(180deg,rgba(0,0,0,0.35) 0%,rgba(0,0,0,0.55) 100%);
+  }
+  .xingu-corner{position:absolute;width:11px;height:11px;background:var(--red);z-index:2;}
+  .xingu-corner.tl{top:-6px;left:-6px;}
+  .xingu-corner.tr{top:-6px;right:-6px;}
+  .xingu-corner.bl{bottom:-6px;left:-6px;}
+  .xingu-corner.br{bottom:-6px;right:-6px;}
+  .xingu-eyebrow{
+    position:relative;z-index:1;
+    display:block;font-family:'DM Mono',monospace;font-size:0.75rem;font-weight:400;
+    letter-spacing:-0.03em;color:var(--red);margin:0 0 22px;
+  }
+  .xingu-text{
+    position:relative;z-index:1;margin:0;max-width:34ch;
+    font-family:'Poppins',sans-serif;font-weight:800;text-transform:uppercase;
+    font-size:clamp(1.3rem,2.7vw,2.15rem);line-height:1.32;
+    letter-spacing:-0.01em;color:#fff;
+    text-wrap:balance;
+  }
+  .xingu-text .dot-o{background:#fff;}
+  .xingu-text .xingu-word{white-space:nowrap;}
+  @media (max-width:720px){.xingu-quote{padding:64px 0;}}
+
   /* PLANOS DE CONTRIBUIÇÃO (pricing) */
   .pricing-section{background:#fff;position:relative;overflow:hidden;}
   .pricing-bg{
@@ -1022,6 +1060,24 @@
     </div>
   </section>
 
+  <!-- XINGU - texto quote sobre framed, cores da marca -->
+  <section class="xingu-quote">
+    <div class="container">
+      <div class="xingu-frame">
+        <video class="xingu-video" id="xinguVideo" autoplay muted loop playsinline>
+          <source src="xingu-bg.mp4" type="video/mp4">
+        </video>
+        <div class="xingu-video-overlay"></div>
+        <span class="xingu-corner tl"></span>
+        <span class="xingu-corner tr"></span>
+        <span class="xingu-corner bl"></span>
+        <span class="xingu-corner br"></span>
+        <span class="xingu-eyebrow">Um grito pela vida.</span>
+        <p class="xingu-text" id="xinguText">O Primeiro Passo surgiu como uma ideia que gritou para virar ação e reflorestar no Goj Ta Sá. Quando você coloca a muda do SAF Cambucá na mão e finca na terra com as mãos do coletivo, é como uma flor furando o asfalto: um encontro gerado pela biodiversidade por um futuro melhor.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- CTA FINAL -->
   <section class="cta-final">
     <div class="container">
@@ -1155,6 +1211,23 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
       words.forEach(function(w){ w.innerHTML = withDots; });
     });
   }
+
+  // XINGU quote - fill the "O"s the same way the names block does
+  (function(){
+    var xinguVideo = document.getElementById('xinguVideo');
+    if(xinguVideo){
+      xinguVideo.addEventListener('ended', function(){
+        xinguVideo.currentTime = 0;
+        xinguVideo.play();
+      });
+    }
+    var xinguText = document.getElementById('xinguText');
+    if(xinguText){
+      xinguText.innerHTML = xinguText.textContent.split(' ').map(function(word){
+        return '<span class="xingu-word">' + word.replace(/o/gi, '<span class="dot-o"></span>') + '</span>';
+      }).join(' ');
+    }
+  })();
 
   // floating thumbnail that trails the cursor horizontally while hovering a name row
   document.querySelectorAll('.name-row').forEach(function(row){
@@ -1608,4 +1681,5 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
   nextBtn.addEventListener('click', function(){ rotate(1); });
 })();
 </script>
-</body></html>
+</body>
+</html>
