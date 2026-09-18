@@ -87,6 +87,26 @@
 <body>
 </head>
 <body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@500;700;800;900&family=DM+Mono:wght@400;500&display=swap');
 
@@ -188,7 +208,19 @@
     min-height:100vh;
   }
   .hero-vitae{position:relative;overflow:hidden;}
-  .hero-carousel{position:absolute;inset:0;z-index:0;}
+  .hero-reveal-photo{
+    position:absolute;inset:0;z-index:0;
+    background-image:url('hero-reveal.jpg');
+    background-size:cover;background-position:50% 30%;
+    transform:scale(1.12);
+    will-change:transform;
+  }
+  .hero-reveal-canvas{
+    position:absolute;inset:0;z-index:1;width:100%;height:100%;
+    image-rendering:pixelated;image-rendering:crisp-edges;
+    pointer-events:none;
+  }
+  .hero-carousel{position:absolute;inset:0;z-index:2;}
   .hero-carousel svg{position:absolute;inset:0;width:100%;height:100%;}
   .hc-scale{position:absolute;top:0;left:0;transform-origin:0 0;}
   .hero-carousel .hc-item{
@@ -206,7 +238,7 @@
     cursor:pointer;
   }
   .hero-carousel .hc-item img{width:100%;height:100%;object-fit:cover;display:block;}
-  .hero-vitae>.container,.hero-vitae>.hero-spacer{position:relative;z-index:2;}
+  .hero-vitae>.container,.hero-vitae>.hero-spacer{position:relative;z-index:3;}
 
   /* wide desktops (1920+) keep content pinned to the true left/right edges instead
      of centering in a narrow column - left/center/right stay spread across the row */
@@ -615,6 +647,8 @@
 <main id="topo">
   <!-- HERO -->
   <section class="hero-vitae">
+    <div class="hero-reveal-photo" id="heroRevealPhoto"></div>
+    <canvas class="hero-reveal-canvas" id="heroRevealCanvas"></canvas>
     <div class="hero-carousel" id="heroCarousel">
       <div class="hc-scale" id="hcScale">
       <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -1210,6 +1244,193 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
   }
 
   window.addEventListener('scroll', onScroll, {passive:true});
+})();
+
+/* ---- Hero pixel-reveal: a hard-edged pixel grid over the hero photo. Cells the
+   cursor passes over flip permanently from black to fully showing the photo (no
+   partial opacity, no healing) so the trail the visitor leaves behind stays put
+   and can only grow. A light tilt/parallax on the photo follows the pointer. ---- */
+(function(){
+  var hero = document.querySelector('.hero-vitae');
+  var canvas = document.getElementById('heroRevealCanvas');
+  var photo = document.getElementById('heroRevealPhoto');
+  if(!hero || !canvas || !photo) return;
+  var ctx = canvas.getContext('2d');
+
+  // coarse grid: each canvas pixel is one chunky "pixel" once scaled up by the
+  // pixelated CSS rendering on .hero-reveal-canvas
+  var CW = 108, CH = 64;
+  canvas.width = CW;
+  canvas.height = CH;
+
+  var img = ctx.createImageData(CW, CH);
+  for(var i = 0; i < img.data.length; i += 4){
+    img.data[i] = 0; img.data[i+1] = 0; img.data[i+2] = 0; img.data[i+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // Protection grid: cells here can never be erased, so the reveal never washes
+  // out the small white/gray text behind it. The zone follows a noisy pixel
+  // pattern rather than a clean rectangle, and is only a partial (lighter) block
+  // over the big "1ºPR" logo, so a few reveal pixels are still allowed through it.
+  var protectedCells = new Uint8Array(CW * CH);
+  function hashCell(x, y){
+    var h = (x * 374761393 + y * 668265263);
+    h = (h ^ (h >> 13)) * 1274126177;
+    return ((h ^ (h >> 16)) >>> 0) / 4294967295;
+  }
+  // Density fades with distance from the element's box using the Euclidean
+  // distance-to-rect (which rounds corners on its own - no straight rectangle
+  // tips), then a per-cell hash decides on/off at that density. So it's never a
+  // solid block and never a clean rectangle: legibility comes from staying dense
+  // close in, not from a guaranteed-solid core.
+  function markProtection(el, fadeCells, peakDensity){
+    if(!el) return;
+    var heroRect = hero.getBoundingClientRect();
+    var r = el.getBoundingClientRect();
+    var rx0 = (r.left - heroRect.left) / heroRect.width * CW;
+    var rx1 = (r.right - heroRect.left) / heroRect.width * CW;
+    var ry0 = (r.top - heroRect.top) / heroRect.height * CH;
+    var ry1 = (r.bottom - heroRect.top) / heroRect.height * CH;
+    var gx0 = Math.max(0, Math.floor(rx0 - fadeCells));
+    var gx1 = Math.min(CW, Math.ceil(rx1 + fadeCells));
+    var gy0 = Math.max(0, Math.floor(ry0 - fadeCells));
+    var gy1 = Math.min(CH, Math.ceil(ry1 + fadeCells));
+    for(var y = gy0; y < gy1; y++){
+      var dy = y < ry0 ? ry0 - y : (y > ry1 ? y - ry1 : 0);
+      for(var x = gx0; x < gx1; x++){
+        var dx = x < rx0 ? rx0 - x : (x > rx1 ? x - rx1 : 0);
+        var dist = Math.sqrt(dx*dx + dy*dy);
+        var falloff = Math.max(0, 1 - dist / fadeCells);
+        if(falloff <= 0) continue;
+        var density = peakDensity * falloff;
+        if(hashCell(x, y) < density) protectedCells[y * CW + x] = 1;
+      }
+    }
+  }
+  function markScatter(el, density){
+    if(!el) return;
+    var heroRect = hero.getBoundingClientRect();
+    var r = el.getBoundingClientRect();
+    var gx0 = Math.max(0, Math.floor((r.left - heroRect.left) / heroRect.width * CW));
+    var gx1 = Math.min(CW, Math.ceil((r.right - heroRect.left) / heroRect.width * CW));
+    var gy0 = Math.max(0, Math.floor((r.top - heroRect.top) / heroRect.height * CH));
+    var gy1 = Math.min(CH, Math.ceil((r.bottom - heroRect.top) / heroRect.height * CH));
+    for(var y = gy0; y < gy1; y++){
+      for(var x = gx0; x < gx1; x++){
+        if(hashCell(x, y) < density) protectedCells[y * CW + x] = 1;
+      }
+    }
+  }
+  // Marks a light scatter of protected cells along the fixed SVG curve itself
+  // (not the moving photo tiles), so the carousel's path stays a little visible
+  // even before the visitor's cursor ever crosses it. Recomputed on resize using
+  // the carousel's own scale math, so it tracks the path on every breakpoint.
+  function markPathScatter(density){
+    var pathEl = document.getElementById('heroPath');
+    var carouselEl = document.getElementById('heroCarousel');
+    if(!pathEl || !carouselEl || !pathEl.getTotalLength) return;
+    var wrapperW = carouselEl.clientWidth, wrapperH = carouselEl.clientHeight;
+    if(!wrapperW || !wrapperH) return;
+    var VB_W = 1920, VB_H = 1080;
+    var scale = Math.min(wrapperW / VB_W, wrapperH / VB_H);
+    var offsetX = (wrapperW - VB_W * scale) / 2;
+    var offsetY = (wrapperH - VB_H * scale) / 2;
+    var heroRect = hero.getBoundingClientRect();
+    var carRect = carouselEl.getBoundingClientRect();
+    var baseX = carRect.left - heroRect.left + offsetX;
+    var baseY = carRect.top - heroRect.top + offsetY;
+    var totalLen = pathEl.getTotalLength();
+    var N = 170;
+    for(var i = 0; i <= N; i++){
+      var p = pathEl.getPointAtLength((i / N) * totalLen);
+      var gx = (baseX + p.x * scale) / heroRect.width * CW;
+      var gy = (baseY + p.y * scale) / heroRect.height * CH;
+      for(var dy = -1; dy <= 1; dy++){
+        for(var dx = -1; dx <= 1; dx++){
+          var x = Math.round(gx + dx), y = Math.round(gy + dy);
+          if(x < 0 || x >= CW || y < 0 || y >= CH) continue;
+          if(hashCell(x, y) < density) protectedCells[y * CW + x] = 1;
+        }
+      }
+    }
+  }
+  function rebuildProtection(){
+    protectedCells.fill(0);
+    markProtection(document.querySelector('.hero-pitch'), 6, 0.82);
+    markProtection(document.getElementById('navCaption'), 6, 0.82);
+    markProtection(document.querySelector('.hero-logo-svg'), 5, 0.4);
+    markProtection(document.getElementById('heroFlowerGroup'), 4, 0.6);
+    markProtection(document.querySelector('.hero-utility'), 5, 0.35);
+    markProtection(document.querySelector('.nav-year'), 5, 0.6);
+    markPathScatter(0.32);
+  }
+  rebuildProtection();
+  window.addEventListener('resize', function(){
+    clearTimeout(window.__heroRevealProtResize);
+    window.__heroRevealProtResize = setTimeout(rebuildProtection, 300);
+  });
+
+  var REVEAL_R = 1.05; // small radius in grid cells = few pixels light up per pass
+  function revealCell(gx, gy){
+    var r = Math.ceil(REVEAL_R);
+    for(var dy = -r; dy <= r; dy++){
+      for(var dx = -r; dx <= r; dx++){
+        if(dx*dx + dy*dy > REVEAL_R*REVEAL_R + 0.25) continue;
+        var x = Math.round(gx + dx), y = Math.round(gy + dy);
+        if(x < 0 || x >= CW || y < 0 || y >= CH) continue;
+        if(protectedCells[y * CW + x]) continue;
+        img.data[(y * CW + x) * 4 + 3] = 0; // fully transparent, no gradient
+      }
+    }
+  }
+
+  function revealLine(x0, y0, x1, y1){
+    var dist = Math.hypot(x1 - x0, y1 - y0);
+    var steps = Math.max(1, Math.ceil(dist));
+    for(var s = 0; s <= steps; s++){
+      var t = s / steps;
+      revealCell(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+    }
+  }
+
+  var tiltX = 0, tiltY = 0, tiltTX = 0, tiltTY = 0;
+  var lastGX = null, lastGY = null;
+  var imgDirty = false;
+
+  function onMove(clientX, clientY){
+    var r = hero.getBoundingClientRect();
+    var nx = (clientX - r.left) / r.width;
+    var ny = (clientY - r.top) / r.height;
+    if(nx < 0 || nx > 1 || ny < 0 || ny > 1){ lastGX = null; lastGY = null; return; }
+    var gx = nx * CW, gy = ny * CH;
+    if(lastGX != null) revealLine(lastGX, lastGY, gx, gy); else revealCell(gx, gy);
+    lastGX = gx; lastGY = gy;
+    imgDirty = true;
+    tiltTX = nx - 0.5;
+    tiltTY = ny - 0.5;
+  }
+
+  window.addEventListener('mousemove', function(e){ onMove(e.clientX, e.clientY); }, {passive:true});
+  window.addEventListener('mouseleave', function(){ lastGX = null; lastGY = null; tiltTX = 0; tiltTY = 0; });
+  hero.addEventListener('touchmove', function(e){
+    if(e.touches[0]) onMove(e.touches[0].clientX, e.touches[0].clientY);
+  }, {passive:true});
+  hero.addEventListener('touchend', function(){ lastGX = null; lastGY = null; tiltTX = 0; tiltTY = 0; });
+
+  // tilt/parallax easing and the (throttled) canvas repaint share one light rAF
+  // loop, so fast mousemove bursts only ever cost one putImageData per frame
+  function tiltTick(){
+    if(imgDirty){ ctx.putImageData(img, 0, 0); imgDirty = false; }
+    tiltX += (tiltTX - tiltX) * 0.06;
+    tiltY += (tiltTY - tiltY) * 0.06;
+    photo.style.transform =
+      'scale(1.12) ' +
+      'rotate(' + (tiltX * 2.2) + 'deg) ' +
+      'translate(' + (tiltX * -14) + 'px,' + (tiltY * -14) + 'px)';
+    requestAnimationFrame(tiltTick);
+  }
+  requestAnimationFrame(tiltTick);
 })();
 
 /* ---- Hero photo carousel: static square photos along an SVG path, edge-to-edge, no swap/fade ---- */
