@@ -107,6 +107,10 @@
 <body>
 </head>
 <body>
+</head>
+<body>
+</head>
+<body>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@500;700;800;900&family=DM+Mono:wght@400;500&display=swap');
 
@@ -1221,7 +1225,7 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
 (function(){
   var flower = document.getElementById('heroFlowerGroup');
   if(!flower) return;
-  var ROT_PER_PX = 360 / 900;
+  var ROT_PER_PX = -360 / 900;
   var current = 0, target = 0, lastScrollY = window.scrollY, raf = null;
 
   function onScroll(){
@@ -1257,27 +1261,41 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
   if(!hero || !canvas || !photo) return;
   var ctx = canvas.getContext('2d');
 
-  // coarse grid: each canvas pixel is one chunky "pixel" once scaled up by the
-  // pixelated CSS rendering on .hero-reveal-canvas
-  var CW = 108, CH = 64;
-  canvas.width = CW;
-  canvas.height = CH;
-
-  var img = ctx.createImageData(CW, CH);
-  for(var i = 0; i < img.data.length; i += 4){
-    img.data[i] = 0; img.data[i+1] = 0; img.data[i+2] = 0; img.data[i+3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-
-  // Protection grid: cells here can never be erased, so the reveal never washes
-  // out the small white/gray text behind it. The zone follows a noisy pixel
-  // pattern rather than a clean rectangle, and is only a partial (lighter) block
-  // over the big "1ºPR" logo, so a few reveal pixels are still allowed through it.
-  var protectedCells = new Uint8Array(CW * CH);
+  // Each canvas pixel is one chunky "pixel" once scaled up by the pixelated CSS
+  // rendering on .hero-reveal-canvas. The canvas' own width/height (its internal
+  // pixel grid) is sized to match the hero's real on-screen aspect ratio at a
+  // fixed target pixel size, so a grid cell always renders as a perfect square
+  // (never stretched into a rectangle) on every device.
+  var PIXEL_PX = 11;
+  var CW = 1, CH = 1;
+  var img = null;
+  var protectedCells = new Uint8Array(1);
   function hashCell(x, y){
     var h = (x * 374761393 + y * 668265263);
     h = (h ^ (h >> 13)) * 1274126177;
     return ((h ^ (h >> 16)) >>> 0) / 4294967295;
+  }
+
+  // Recomputes the canvas' own pixel grid from the hero's current on-screen
+  // size, keeping each cell a fixed real-world size (so it's a square on every
+  // device) instead of a fixed cell COUNT stretched to fit. Resets the reveal -
+  // only runs on load and on resize/breakpoint changes, so that's an acceptable
+  // trade for pixels that are always actually square.
+  function resizeGrid(){
+    var r = hero.getBoundingClientRect();
+    if(!r.width || !r.height) return false;
+    CW = Math.max(1, Math.round(r.width / PIXEL_PX));
+    CH = Math.max(1, Math.round(r.height / PIXEL_PX));
+    canvas.width = CW;
+    canvas.height = CH;
+    img = ctx.createImageData(CW, CH);
+    for(var i = 0; i < img.data.length; i += 4){
+      img.data[i] = 0; img.data[i+1] = 0; img.data[i+2] = 0; img.data[i+3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    protectedCells = new Uint8Array(CW * CH);
+    lastGX = null; lastGY = null;
+    return true;
   }
   // Density fades with distance from the element's box using the Euclidean
   // distance-to-rect (which rounds corners on its own - no straight rectangle
@@ -1361,14 +1379,17 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
     markProtection(document.getElementById('navCaption'), 6, 0.82);
     markProtection(document.querySelector('.hero-logo-svg'), 5, 0.4);
     markProtection(document.getElementById('heroFlowerGroup'), 4, 0.6);
-    markProtection(document.querySelector('.hero-utility'), 5, 0.35);
+    markProtection(document.querySelector('.hero-utility'), 5, 0.78);
     markProtection(document.querySelector('.nav-year'), 5, 0.6);
     markPathScatter(0.32);
   }
-  rebuildProtection();
+  function rebuildAll(){
+    if(resizeGrid()) rebuildProtection();
+  }
+  rebuildAll();
   window.addEventListener('resize', function(){
     clearTimeout(window.__heroRevealProtResize);
-    window.__heroRevealProtResize = setTimeout(rebuildProtection, 300);
+    window.__heroRevealProtResize = setTimeout(rebuildAll, 300);
   });
 
   var REVEAL_R = 1.05; // small radius in grid cells = few pixels light up per pass
