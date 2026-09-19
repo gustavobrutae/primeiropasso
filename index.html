@@ -123,6 +123,12 @@
 <body>
 </head>
 <body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@500;700;800;900&family=DM+Mono:wght@400;500&display=swap');
 
@@ -215,7 +221,7 @@
      and the utility bar down with growing empty space between, no seam anywhere. */
   .hero-vitae{
     --ink:#ffffff;
-    --ink-soft:#95908b;
+    --ink-soft:#c7c3bf;
     --line:rgba(255,255,255,0.16);
     --white:#000000;
     background:#000;
@@ -1288,6 +1294,114 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
     return ((h ^ (h >> 16)) >>> 0) / 4294967295;
   }
 
+  // "Liquid glass" base panel: a real, strongly-blurred (frost) sample of the
+  // photo itself - not a flat color - tinted black/translucent, with a soft
+  // directional light sheen (depth) and a one-cell R/B channel offset
+  // (dispersion) for a subtle chromatic-fringe edge, like a glass panel
+  // refracting what's behind it. The blur is baked in at build time (drawn at
+  // a heavily blurred, larger-than-grid resolution and then downsampled), so
+  // it reads as smooth frosted glass rather than a legible low-res mosaic.
+  // Revealed cells still drop to alpha 0 and show the real sharp photo below,
+  // completely untouched by any of this.
+  var photoImg = new Image();
+  var photoReady = false;
+  photoImg.onload = function(){ photoReady = true; rebuildAll(); };
+  photoImg.src = photo && getComputedStyle(photo).backgroundImage
+    ? getComputedStyle(photo).backgroundImage.replace(/^url\(["']?/, '').replace(/["']?\)$/, '')
+    : 'hero-reveal.jpg';
+  var baseCells = null; // Uint8ClampedArray, RGBA per cell, CW*CH*4
+  function buildBaseCells(r){
+    if(!photoReady || !photoImg.naturalWidth) { baseCells = null; return; }
+    var iw = photoImg.naturalWidth, ih = photoImg.naturalHeight;
+    var cw = r.width, ch = r.height;
+    var coverScale = Math.max(cw / iw, ch / ih);
+    var drawW = iw * coverScale, drawH = ih * coverScale;
+    var offsetX = (cw - drawW) * 0.5;   // background-position: 50%
+    var offsetY = (ch - drawH) * 0.3;   // background-position: 30%
+
+    // A real, smooth frost - built as a mip-map style pyramid of successive
+    // half-size downsamples (each step's bilinear averaging is a strong box
+    // blur in its own right, and CSS canvas `filter: blur()` alone proved too
+    // weak/inconsistent at this scale to actually erase large shapes like
+    // tree trunks). Keeps the photo's natural vivid color; the translucent
+    // black "glass" tint is blended on top afterwards (not multiplied into
+    // it), so it reads as dark glass over a genuinely blurred, colorful photo.
+    var stageW = Math.round(cw), stageH = Math.round(ch);
+    var stage = document.createElement('canvas');
+    stage.width = stageW; stage.height = stageH;
+    var sctx = stage.getContext('2d');
+    sctx.filter = 'saturate(1.35)';
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    sctx.translate(cw / 2, ch / 2);
+    sctx.scale(1.12, 1.12);             // matches .hero-reveal-photo transform
+    sctx.translate(-cw / 2, -ch / 2);
+    sctx.translate(offsetX, offsetY);
+    sctx.scale(coverScale, coverScale);
+    sctx.drawImage(photoImg, 0, 0);
+
+    // Halve the resolution repeatedly down to a TINY size (this is what
+    // actually erases large shapes like tree trunks - a single downsample
+    // step isn't enough since a wide trunk can still span several cells).
+    // Then double back UP gradually to the final grid, one step at a time -
+    // each gradual doubling is itself a smoothing blur, so the result comes
+    // back as a genuinely smooth gradient instead of a blocky mosaic.
+    var curW = stageW, curH = stageH, curCanvas = stage;
+    while(curW > 40 && curH > 40){
+      var nextW = Math.max(20, Math.round(curW / 2));
+      var nextH = Math.max(20, Math.round(curH / 2));
+      var next = document.createElement('canvas');
+      next.width = nextW; next.height = nextH;
+      var nctx = next.getContext('2d');
+      nctx.imageSmoothingEnabled = true;
+      nctx.imageSmoothingQuality = 'high';
+      nctx.drawImage(curCanvas, 0, 0, nextW, nextH);
+      curCanvas = next; curW = nextW; curH = nextH;
+    }
+    while(curW < CW && curH < CH){
+      var upW = Math.min(CW, curW * 2);
+      var upH = Math.min(CH, curH * 2);
+      var up = document.createElement('canvas');
+      up.width = upW; up.height = upH;
+      var uctx = up.getContext('2d');
+      uctx.imageSmoothingEnabled = true;
+      uctx.imageSmoothingQuality = 'high';
+      uctx.drawImage(curCanvas, 0, 0, upW, upH);
+      curCanvas = up; curW = upW; curH = upH;
+    }
+
+    var tmp = document.createElement('canvas');
+    tmp.width = CW; tmp.height = CH;
+    var tctx = tmp.getContext('2d');
+    tctx.imageSmoothingEnabled = true;
+    tctx.imageSmoothingQuality = 'high';
+    tctx.filter = 'blur(' + Math.round(CW * 0.03) + 'px)';
+    tctx.drawImage(curCanvas, 0, 0, curW, curH, 0, 0, CW, CH);
+    var data = tctx.getImageData(0, 0, CW, CH).data;
+
+    var glassAlpha = 0.3; // black glass pane opacity, ALPHA-BLENDED over the blur (not multiplied into it)
+    var sheen = 0.10;      // soft light sheen strength, brighter toward top-left
+    var out = new Uint8ClampedArray(data.length);
+    for(var y = 0; y < CH; y++){
+      for(var x = 0; x < CW; x++){
+        var idx = (y * CW + x) * 4;
+        // one-cell chromatic offset (dispersion): sample R a cell to the
+        // left and B a cell to the right of the base sample.
+        var ri = (y * CW + Math.max(0, x - 1)) * 4;
+        var bi = (y * CW + Math.min(CW - 1, x + 1)) * 4;
+        var light = (1 - x / CW) * 0.6 + (1 - y / CH) * 0.4;
+        var add = light * sheen * 255;
+        var r2 = Math.min(255, data[ri] + add);
+        var g2 = Math.min(255, data[idx+1] + add);
+        var b2 = Math.min(255, data[bi+2] + add);
+        out[idx]   = r2 * (1 - glassAlpha);
+        out[idx+1] = g2 * (1 - glassAlpha);
+        out[idx+2] = b2 * (1 - glassAlpha);
+        out[idx+3] = 255;
+      }
+    }
+    baseCells = out;
+  }
+
   // Recomputes the canvas' own pixel grid from the hero's current on-screen
   // size, keeping each cell a fixed real-world size (so it's a square on every
   // device) instead of a fixed cell COUNT stretched to fit. Resets the reveal -
@@ -1300,9 +1414,15 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
     CH = Math.max(1, Math.round(r.height / PIXEL_PX));
     canvas.width = CW;
     canvas.height = CH;
+    buildBaseCells(r);
     img = ctx.createImageData(CW, CH);
     for(var i = 0; i < img.data.length; i += 4){
-      img.data[i] = 0; img.data[i+1] = 0; img.data[i+2] = 0; img.data[i+3] = 255;
+      if(baseCells){
+        img.data[i] = baseCells[i]; img.data[i+1] = baseCells[i+1];
+        img.data[i+2] = baseCells[i+2]; img.data[i+3] = baseCells[i+3];
+      } else {
+        img.data[i] = 0; img.data[i+1] = 0; img.data[i+2] = 0; img.data[i+3] = 170;
+      }
     }
     ctx.putImageData(img, 0, 0);
     protectedCells = new Uint8Array(CW * CH);
@@ -1404,7 +1524,7 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
     window.__heroRevealProtResize = setTimeout(rebuildAll, 300);
   });
 
-  var REVEAL_R = 1.05; // small radius in grid cells = few pixels light up per pass
+  var REVEAL_R = 2.1; // small radius in grid cells = few pixels light up per pass
   function revealCell(gx, gy){
     var r = Math.ceil(REVEAL_R);
     for(var dy = -r; dy <= r; dy++){
@@ -1459,7 +1579,6 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
     tiltY += (tiltTY - tiltY) * 0.06;
     photo.style.transform =
       'scale(1.12) ' +
-      'rotate(' + (tiltX * 2.2) + 'deg) ' +
       'translate(' + (tiltX * -14) + 'px,' + (tiltY * -14) + 'px)';
     requestAnimationFrame(tiltTick);
   }
