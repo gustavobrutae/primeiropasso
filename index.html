@@ -169,6 +169,18 @@
 <body>
 </head>
 <body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
+</head>
+<body>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@500;700;800;900&family=DM+Mono:wght@400;500&display=swap');
 
@@ -400,6 +412,11 @@
   .xingu-center{align-items:center;text-align:center;}
   .xingu-right{align-items:flex-end;text-align:right;}
   .xingu-row .u-dim{color:rgba(255,255,255,0.68);}
+  .xingu-stat-num{
+    font-family:'Poppins',sans-serif;font-weight:800;letter-spacing:-0.02em;
+    font-size:clamp(2rem,5vw,3.4rem);line-height:1.05;color:#fff;
+    font-variant-numeric:tabular-nums;
+  }
   @media (max-width:720px){
     .xingu-band{background-position:left center;background-size:cover;align-items:stretch;}
     .xingu-row{flex-direction:column;align-items:flex-start;justify-content:space-between;height:100%;}
@@ -454,7 +471,7 @@
   /* Divider banner between the names block and Pontos de Atuação - half the
      height of the "Onde seu apoio vira floresta" cards (110px), same tone-on-
      tone woven pattern as those cards, just in the site's offwhite/gray. */
-  .names-divider{height:55px;background:url('names-divider.png') center/cover no-repeat var(--offwhite);}
+  .names-divider{aspect-ratio:2017/100;background:url('names-divider.png') center/cover no-repeat var(--offwhite);}
   .name-row{
     position:relative;overflow:hidden;white-space:nowrap;border-bottom:1px solid var(--line);
     transition:background 0.5s ease;cursor:default;
@@ -698,8 +715,8 @@
   .btn-apoiar-logo{height:25px;width:auto;display:block;flex:none;color:#000;}
   /* CTA FINAL */
 .cta-final{
-    background:url('cta-banner.png') center/cover no-repeat #f52003;
-    height:clamp(220px,22vw,430px);
+    background:url('cta-banner.png') center/cover no-repeat #FF2803;
+    aspect-ratio:2017/473;
     display:flex;align-items:center;
   }
   .cta-final .container{width:100%;}
@@ -883,18 +900,18 @@
   <!-- ALDEIA XINGU - dados, mesma grade de 3 colunas (DM Mono) da segunda sessão do vitae -->
   <section class="xingu-band">
     <div class="xingu-overlay"></div>
-    <div class="container xingu-row">
+    <div class="container xingu-row" id="xinguStats">
       <div class="xingu-col">
-        <div>Área do projeto</div>
-        <div class="u-dim">[5 mil hectares]</div>
+        <div class="xingu-stat-num" data-count-to="1000"></div>
+        <div class="u-dim">árvores plantadas</div>
       </div>
       <div class="xingu-col xingu-center">
-        <div>Já plantadas</div>
-        <div class="u-dim">[mil árvores]</div>
+        <div class="xingu-stat-num" data-count-to="5000"></div>
+        <div class="u-dim">hectares do projeto</div>
       </div>
       <div class="xingu-col xingu-right">
-        <div>Apoie a causa</div>
-        <div class="u-dim">[como puder]</div>
+        <div class="xingu-stat-num" data-count-from="2024" data-count-to="2026" data-plain></div>
+        <div class="u-dim">OSC registrada</div>
       </div>
     </div>
   </section>
@@ -2361,6 +2378,54 @@ var HC_PHOTOS=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgwKC
     resizeTimer = setTimeout(build, 250);
   });
   if(document.fonts && document.fonts.ready){ document.fonts.ready.then(build); }
+})();
+
+/* Xingu stats band - counts each number up from 0 once it scrolls into view. */
+(function(){
+  var wrap = document.getElementById('xinguStats');
+  if(!wrap) return;
+  var nums = Array.prototype.slice.call(wrap.querySelectorAll('.xingu-stat-num'));
+  if(!nums.length) return;
+
+  function formatNumber(n, plain){
+    var rounded = Math.round(n);
+    return plain ? String(rounded) : rounded.toLocaleString('pt-BR');
+  }
+  function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+
+  function animateOne(el){
+    var from = parseFloat(el.getAttribute('data-count-from')) || 0;
+    var to = parseFloat(el.getAttribute('data-count-to')) || 0;
+    var plain = el.hasAttribute('data-plain');
+    var prefix = el.getAttribute('data-prefix') || '';
+    var suffix = el.getAttribute('data-suffix') || '';
+    var duration = 1600;
+    var start = null;
+    function frame(ts){
+      if(start === null) start = ts;
+      var p = Math.min(1, (ts - start) / duration);
+      var val = from + (to - from) * easeOutCubic(p);
+      el.textContent = prefix + formatNumber(val, plain) + suffix;
+      if(p < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function runAll(){ nums.forEach(animateOne); }
+
+  if('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          runAll();
+          io.disconnect();
+        }
+      });
+    }, {threshold:0.4});
+    io.observe(wrap);
+  } else {
+    runAll();
+  }
 })();
 </script>
 </body>
