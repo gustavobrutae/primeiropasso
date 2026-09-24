@@ -851,15 +851,15 @@
     <div class="xingu-overlay"></div>
     <div class="container xingu-row" id="xinguStats">
       <div class="xingu-col">
-        <div class="xingu-stat-num" data-count-to="1000"></div>
+        <div class="xingu-stat-num" data-count-to="1000">1.000</div>
         <div class="u-dim" data-i18n="stats.trees">árvores plantadas</div>
       </div>
       <div class="xingu-col xingu-center">
-        <div class="xingu-stat-num" data-count-to="5000"></div>
+        <div class="xingu-stat-num" data-count-to="5000">5.000</div>
         <div class="u-dim" data-i18n="stats.hectares">hectares do projeto</div>
       </div>
       <div class="xingu-col xingu-right">
-        <div class="xingu-stat-num" data-count-from="2024" data-count-to="2026" data-plain></div>
+        <div class="xingu-stat-num" data-count-from="2024" data-count-to="2026" data-plain>2026</div>
         <div class="u-dim" data-i18n="stats.osc">OSC registrada</div>
       </div>
     </div>
@@ -1371,7 +1371,7 @@ var HC_PHOTOS=["hc/001.jpg","hc/002.jpg","hc/003.jpg","hc/004.jpg","hc/005.jpg",
           } else if(started){
             active.pause();
           }
-        }, {rootMargin: '200px'});
+        }, {rootMargin: '1500px'});
         videoIo.observe(xinguSection);
       } else {
         a.play();
@@ -1823,7 +1823,13 @@ spinOnScroll(document.getElementById('xinguBadgeSpin'));
     if(resizeGrid()) rebuildProtection();
   }
   rebuildAll();
+  // resizing the canvas wipes it back to the "unrevealed" frosted state - a
+  // mobile address-bar show/hide on scroll fires resize with only innerHeight
+  // changed, which was flashing the whole hero back to frosted mid-scroll
+  var lastRevealResizeW = window.innerWidth;
   window.addEventListener('resize', function(){
+    if(window.innerWidth === lastRevealResizeW) return;
+    lastRevealResizeW = window.innerWidth;
     clearTimeout(window.__heroRevealProtResize);
     window.__heroRevealProtResize = setTimeout(rebuildAll, 300);
   });
@@ -1977,7 +1983,14 @@ spinOnScroll(document.getElementById('xinguBadgeSpin'));
 
   build();
   var resizeTimer;
+  var lastResizeW = window.innerWidth;
   window.addEventListener('resize', function(){
+    // mobile browsers fire resize when the address-bar chrome shows/hides on
+    // scroll, which changes innerHeight but never innerWidth - rebuilding the
+    // whole 20+ photo deck for that is exactly what was making scrolling
+    // janky/flickery on phones, so only real width changes rebuild it
+    if(window.innerWidth === lastResizeW) return;
+    lastResizeW = window.innerWidth;
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(build, 300);
   });
@@ -2605,7 +2618,12 @@ function i18nString(key, fallback){
   }
 
   var resizeTimer;
+  var lastResizeW = window.innerWidth;
   window.addEventListener('resize', function(){
+    // ignore height-only changes (mobile address-bar show/hide on scroll) -
+    // only a real width change needs the ~60-glyph deck rebuilt
+    if(window.innerWidth === lastResizeW) return;
+    lastResizeW = window.innerWidth;
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(build, 250);
   });
@@ -2653,7 +2671,7 @@ function i18nString(key, fallback){
           io.disconnect();
         }
       });
-    }, {threshold:0.4});
+    }, {threshold:0.1});
     io.observe(wrap);
   } else {
     runAll();
