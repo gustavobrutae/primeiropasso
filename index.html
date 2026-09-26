@@ -29,6 +29,8 @@
 <meta name="twitter:image" content="https://gustavobrutae.github.io/primeiropasso/og-cover.jpg">
 </head>
 <body>
+<link rel="preload" as="image" href="xingu-band-bg-m.jpg" media="(max-width:720px)">
+<link rel="preload" as="image" href="xingu-band-bg.jpg" media="(min-width:721px)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@500;700;800;900&family=DM+Mono:wght@400;500&display=swap">
@@ -318,7 +320,7 @@
     font-variant-numeric:tabular-nums;
   }
   @media (max-width:720px){
-    .xingu-band{background-position:left center;background-size:cover;align-items:stretch;}
+    .xingu-band{background-image:url('xingu-band-bg-m.jpg');background-position:left center;background-size:cover;align-items:stretch;}
     .xingu-row{flex-direction:column;align-items:flex-start;justify-content:space-between;height:100%;}
     .xingu-center{align-items:flex-start;text-align:left;}
     .xingu-right{align-items:flex-start;text-align:left;}
