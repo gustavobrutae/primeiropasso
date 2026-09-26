@@ -29,11 +29,13 @@
 <meta name="twitter:image" content="https://gustavobrutae.github.io/primeiropasso/og-cover.jpg">
 </head>
 <body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@500;700;800;900&family=DM+Mono:wght@400;500&display=swap">
 <meta charset="utf-8">
 <title>Primeiro Passo Reflorestar</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@500;700;800;900&family=DM+Mono:wght@400;500&display=swap');
-
+  
   :root{
     --ink:#150c0f;
     --ink-soft:#5c534e;
@@ -718,7 +720,7 @@
       <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <path id="heroPath" d="M-659.6,697.1 C-264.2,727.3 32.5,749.9 230.2,765 C427.9,780 854.2,716.9 937.7,515.8 C1060.4,220.1 885.0,81.7 755.1,232.8 C625.3,383.9 741.7,633.3 1018.9,594.6 C1207.3,568.3 1551.8,335.3 1695.0,225.1 C1838.1,114.8 2052.9,-50.5 2339.3,-270.9" fill="none" stroke="none"/>
       </svg>
-      <div class="hc-item" data-slot="template" style="display:none;"><img alt="" draggable="false"></div>
+      <div class="hc-item" data-slot="template" style="display:none;"><img alt="" draggable="false" decoding="async"></div>
       </div>
     </div>
     <div class="container hero-topbar">
@@ -889,14 +891,14 @@
         <span class="name-word">Goj Ta Sá</span>
         <span class="name-word">Goj Ta Sá</span>
       </span>
-      <img class="name-thumb" data-thumb="goj" alt="" aria-hidden="true">
+      <img class="name-thumb" data-thumb="goj" alt="" aria-hidden="true" decoding="async" loading="lazy">
     </div>
     <div class="name-row" style="--name-hover:var(--yellow);">
       <span class="name-track">
         <span class="name-word">Saf Cambucá</span>
         <span class="name-word">Saf Cambucá</span>
       </span>
-      <img class="name-thumb" data-thumb="saf" alt="" aria-hidden="true">
+      <img class="name-thumb" data-thumb="saf" alt="" aria-hidden="true" decoding="async" loading="lazy">
     </div>
   </div>
 
@@ -1886,11 +1888,15 @@ spinOnScroll(document.getElementById('xinguBadgeSpin'));
   var tiltRafRunning = false;
   function tiltTick(){
     if(imgDirty){ ctx.putImageData(img, 0, 0); imgDirty = false; }
-    tiltX += (tiltTX - tiltX) * 0.06;
-    tiltY += (tiltTY - tiltY) * 0.06;
-    photo.style.transform =
-      'scale(1.12) ' +
-      'translate(' + (tiltX * -14) + 'px,' + (tiltY * -14) + 'px)';
+    // only restyle the photo while the tilt is actually still easing - on a phone
+    // (no hover) it sits at rest, and rewriting the same transform 60x/sec was pure waste
+    if(Math.abs(tiltTX - tiltX) > 0.0005 || Math.abs(tiltTY - tiltY) > 0.0005){
+      tiltX += (tiltTX - tiltX) * 0.06;
+      tiltY += (tiltTY - tiltY) * 0.06;
+      photo.style.transform =
+        'scale(1.12) ' +
+        'translate(' + (tiltX * -14) + 'px,' + (tiltY * -14) + 'px)';
+    }
     if(tiltRafRunning) requestAnimationFrame(tiltTick);
   }
   function startTilt(){ if(tiltRafRunning) return; tiltRafRunning = true; requestAnimationFrame(tiltTick); }
@@ -1921,7 +1927,7 @@ spinOnScroll(document.getElementById('xinguBadgeSpin'));
   // exposes a small kink where two of the hand-drawn bezier segments meet (visible
   // as a slight rotation "snap" on the tiles passing that joint). Averaging the
   // tangent over a small window around each point smooths that seam out.
-  function pathAngleAt(distFrac){
+  function pathAngleExact(distFrac){
     var L = pathTotalLen;
     var d = ((distFrac % 1) + 1) % 1 * L;
     var delta = L * 0.02;
@@ -1930,6 +1936,21 @@ spinOnScroll(document.getElementById('xinguBadgeSpin'));
     var p0 = pathEl.getPointAtLength(d0);
     var p1 = pathEl.getPointAtLength(d1);
     return Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180 / Math.PI;
+  }
+  // The path never changes (fixed viewBox coordinates), so its smoothed angle is
+  // sampled once into a table instead of asking the SVG engine for two path
+  // points per photo per frame (~100+ getPointAtLength calls every frame, which
+  // is what bogs down phones). Fine sampling + interpolation is visually identical.
+  var ANGLE_N = 4096;
+  var angleLUT = new Float32Array(ANGLE_N + 1);
+  for(var ai = 0; ai <= ANGLE_N; ai++) angleLUT[ai] = pathAngleExact(ai / ANGLE_N);
+  function pathAngleAt(distFrac){
+    var f = (((distFrac % 1) + 1) % 1) * ANGLE_N;
+    var i0 = Math.floor(f);
+    var a0 = angleLUT[i0], a1 = angleLUT[i0 + 1];
+    var diff = a1 - a0;
+    if(diff > 180) diff -= 360; else if(diff < -180) diff += 360;
+    return a0 + diff * (f - i0);
   }
 
   function updateScale(){
@@ -2042,15 +2063,23 @@ spinOnScroll(document.getElementById('xinguBadgeSpin'));
     var speed = slowdown ? baseVelocity * 0.08 : baseVelocity;
     baseOffset += speed * delta;
 
-    items.forEach(function(el, i){
-      var pos = wrap(baseOffset + (i * stepPercent));
+    for(var k = 0; k < items.length; k++){
+      var el = items[k];
+      var pos = wrap(baseOffset + (k * stepPercent));
       el.style.offsetDistance = pos + '%';
       el.style.offsetRotate = pathAngleAt(pos / 100) + 'deg';
-      var isHovered = i === hoveredIndex;
-      var scaleFactor = isHovered ? 2 : 1;
-      el.style.transform = 'scale(' + scaleFactor + ')';
-      el.style.zIndex = isHovered ? 100000 : Math.round(pos * 10);
-    });
+      // scale/z-index rarely change - only touch them (and force a restyle) when they do
+      var scaleFactor = k === hoveredIndex ? 2 : 1;
+      if(el.__sc !== scaleFactor){
+        el.__sc = scaleFactor;
+        el.style.transform = 'scale(' + scaleFactor + ')';
+      }
+      var z = k === hoveredIndex ? 100000 : Math.round(pos * 10);
+      if(el.__z !== z){
+        el.__z = z;
+        el.style.zIndex = z;
+      }
+    }
     if(rafRunning) requestAnimationFrame(frame);
   }
   function startFrame(){
@@ -2261,7 +2290,7 @@ function i18nString(key, fallback){
     panel.className = 'sq-panel' + (pos >= MAIN_COLS ? ' sq-slat' : '');
     panel.__slide = slide;
     panel.innerHTML =
-      '<img alt="" draggable="false">' +
+      '<img alt="" draggable="false" decoding="async" loading="lazy">' +
       '<div class="sq-panel-overlay"><span>' + withDots(sqPick(slide.label)) + '</span></div>';
     applyColorAndPattern(panel, pos);
     panel.dataset.title = sqPick(slide.title);
@@ -2287,7 +2316,7 @@ function i18nString(key, fallback){
   // there's a way back, without touching how the row itself behaves.
   var peekEl = document.getElementById('sqPeek');
   if(peekEl){
-    peekEl.innerHTML = '<img alt="" draggable="false">';
+    peekEl.innerHTML = '<img alt="" draggable="false" decoding="async" loading="lazy">';
     peekEl.addEventListener('click', function(){ rotate(n - 1); });
   }
   function syncPeekPrev(){
