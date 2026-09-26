@@ -414,6 +414,13 @@
     border-radius:2px;
     padding:clamp(40px,6vw,84px) clamp(28px,5vw,72px);
     overflow:hidden;
+    /* fixed card height sized for the longest translation (9 lines, 17 on narrow
+       phones) so the video never resizes with the language; the eyebrow stays
+       pinned at the top and the quote sits vertically centered in what's left */
+    --xt-fs:clamp(1.3rem,2.7vw,2.15rem);
+    --xt-lines:9;
+    display:flex;flex-direction:column;
+    min-height:calc(2 * clamp(40px,6vw,84px) + 40px + 1.32 * var(--xt-fs) * var(--xt-lines));
   }
   .xingu-video{
     position:absolute;inset:0;width:100%;height:100%;
@@ -438,20 +445,17 @@
   .xingu-text{
     position:relative;z-index:1;margin:0;max-width:34ch;
     font-family:'Poppins',sans-serif;font-weight:800;text-transform:uppercase;
-    font-size:clamp(1.3rem,2.7vw,2.15rem);line-height:1.32;
+    font-size:var(--xt-fs);line-height:1.32;
     letter-spacing:-0.01em;color:#fff;
     text-wrap:balance;
-    /* reserves room for the longest translation at this breakpoint (9 lines
-       from 721px up) so the video card never resizes when the language changes -
-       only the caption text itself does */
-    min-height:calc(1.32em * 9);
+    margin-block:auto;
   }
   .xingu-text .dot-o{background:#fff;}
   .xingu-text .xingu-word{white-space:nowrap;}
   @media (max-width:720px){
     .xingu-quote{padding:64px 0;}
     /* narrower column wraps much more (up to 17 lines for the longest translation) */
-    .xingu-text{min-height:calc(1.32em * 17);}
+    .xingu-frame{--xt-lines:17;}
   }
   @media (min-width:721px) and (max-width:1024px){
     .hero-carousel{width:300%;left:-83%;top:6%;bottom:170px;}
@@ -2000,7 +2004,29 @@ spinOnScroll(document.getElementById('xinguBadgeSpin'));
       scaleEl.appendChild(el);
       items.push(el);
     }
+
+    // On a phone the deck is drawn several screens wide, so most photos are far
+    // off screen at any moment. Precompute which stretches of the path are on (or
+    // near) screen so the frame loop can skip restyling the rest - same look,
+    // a fraction of the per-frame work.
+    needFullPass = true;
+    var sr = scaleEl.getBoundingClientRect();
+    var heroEl = document.querySelector('.hero-vitae');
+    var hr = heroEl.getBoundingClientRect();
+    var sc = sr.width / VB_W;
+    var margin = itemPx * 3 + 60;
+    var vw = window.innerWidth, hh = hr.height;
+    for(var vi = 0; vi <= VIS_N; vi++){
+      var pt = pathEl.getPointAtLength((vi / VIS_N) * pathTotalLen);
+      var sx = sr.left + pt.x * sc;
+      var sy = (sr.top - hr.top) + pt.y * sc;
+      visLUT[vi] = (sx > -margin && sx < vw + margin && sy > -margin && sy < hh + margin) ? 1 : 0;
+    }
   }
+  var VIS_N = 1024;
+  var needFullPass = true;
+  var visLUT = new Uint8Array(VIS_N + 2);
+  visLUT.fill(1);
 
   build();
   var resizeTimer;
@@ -2041,7 +2067,7 @@ spinOnScroll(document.getElementById('xinguBadgeSpin'));
   var rafRunning = false;
   function frame(ts){
     if(lastTs == null) lastTs = ts;
-    var delta = Math.min(ts - lastTs, 48);
+    var delta = Math.min(ts - lastTs, 100);
     lastTs = ts;
 
     // resolve which item (if any) the mouse currently sits over, fresh each frame.
@@ -2063,9 +2089,11 @@ spinOnScroll(document.getElementById('xinguBadgeSpin'));
     var speed = slowdown ? baseVelocity * 0.08 : baseVelocity;
     baseOffset += speed * delta;
 
+    var fullPass = needFullPass; needFullPass = false;
     for(var k = 0; k < items.length; k++){
       var el = items[k];
       var pos = wrap(baseOffset + (k * stepPercent));
+      if(!fullPass && k !== hoveredIndex && !visLUT[(pos * (VIS_N / 100)) | 0]) continue;
       el.style.offsetDistance = pos + '%';
       el.style.offsetRotate = pathAngleAt(pos / 100) + 'deg';
       // scale/z-index rarely change - only touch them (and force a restyle) when they do
@@ -2618,7 +2646,7 @@ function i18nString(key, fallback){
   function wrap(v){ return ((v % 100) + 100) % 100; }
   function frame(ts){
     if(lastTs == null) lastTs = ts;
-    var delta = Math.min(ts - lastTs, 48);
+    var delta = Math.min(ts - lastTs, 100);
     lastTs = ts;
     baseOffset += delta * 0.006; // %/ms - tuned for a calm, steady pace
     for(var i = 0; i < items.length; i++){
